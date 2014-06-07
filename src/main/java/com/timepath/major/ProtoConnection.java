@@ -1,6 +1,6 @@
 package com.timepath.major;
 
-import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.MessageLite;
 import com.timepath.major.proto.Files.FileListing;
 
 import java.io.ByteArrayInputStream;
@@ -64,7 +64,7 @@ public abstract class ProtoConnection {
         return c[0].isInstance(o);
     }
 
-    public void write(GeneratedMessage m) throws IOException {
+    public void write(MessageLite m) throws IOException {
         int length = m.getSerializedSize();
         os.write(( length & 0xFF00 ) >> 8);
         os.write(length & 0xFF);
