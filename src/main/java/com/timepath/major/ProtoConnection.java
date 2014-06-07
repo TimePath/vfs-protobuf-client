@@ -58,7 +58,7 @@ public abstract class ProtoConnection {
     private boolean isApplicable(Method method, Object o) {
         if(method.getAnnotation(Callback.class) == null) return false;
         Class[] c = method.getParameterTypes();
-        if(c.length > 1) return false;
+        if(c.length != 1) return false;
         return c[0].isInstance(o);
     }
 
