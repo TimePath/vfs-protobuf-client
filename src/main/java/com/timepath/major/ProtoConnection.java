@@ -1,9 +1,9 @@
 package com.timepath.major;
 
+import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.MessageLite;
-import com.timepath.major.proto.Files.FileListing;
+import com.timepath.major.proto.Messages.Meta;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -13,6 +13,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Method;
 import java.net.Socket;
+import java.util.Map;
 
 /**
  * @author TimePath
@@ -28,32 +29,29 @@ public abstract class ProtoConnection {
     }
 
     public void read() throws IOException {
-        int length = ( is.read() << 8 ) | is.read();
-        byte[] buf = new byte[length];
-        int total = 0;
-        while(total < length) {
-            total += is.read(buf, total, length - total);
-        }
-        callback(FileListing.parseFrom(new ByteArrayInputStream(buf, 0, total)));
+        callback(Meta.parseDelimitedFrom(is));
     }
 
-    private void callback(Object o) {
-        if(o == null) throw new RuntimeException("Null callback object.");
-        Method m = null;
-        for(Method method : getClass().getDeclaredMethods()) {
-            if(isApplicable(method, o)) {
-                m = method;
-                break;
+    private void callback(Meta msg) {
+        Map<FieldDescriptor, Object> allFields = msg.getAllFields();
+        for(Object o : allFields.values()) {
+            if(o == null) continue;
+            Method m = null;
+            for(Method method : getClass().getDeclaredMethods()) {
+                if(isApplicable(method, o)) {
+                    m = method;
+                    break;
+                }
             }
-        }
-        if(m == null) {
-            throw new RuntimeException("No callback for '" + o.getClass() + "'.");
-        }
-        try {
-            m.setAccessible(true);
-            m.invoke(this, o);
-        } catch(Exception e) {
-            throw new RuntimeException("Callback failed for '" + o.getClass() + "'.", e);
+            if(m == null) {
+                throw new RuntimeException("No callback for '" + o.getClass() + "'.");
+            }
+            try {
+                m.setAccessible(true);
+                m.invoke(this, o);
+            } catch(Exception e) {
+                throw new RuntimeException("Callback failed for '" + o.getClass() + "'.", e);
+            }
         }
     }
 
@@ -65,10 +63,7 @@ public abstract class ProtoConnection {
     }
 
     public void write(MessageLite m) throws IOException {
-        int length = m.getSerializedSize();
-        os.write(( length & 0xFF00 ) >> 8);
-        os.write(length & 0xFF);
-        m.writeTo(os);
+        m.writeDelimitedTo(os);
     }
 
     @Target(ElementType.METHOD)
