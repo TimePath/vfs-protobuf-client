@@ -38,6 +38,7 @@ public abstract class ProtoConnection {
 
     protected void callback(Meta msg) {
         if(msg == null) return;
+        Meta.Builder response = Meta.newBuilder().setTag(msg.getTag());
         Map<FieldDescriptor, Object> allFields = msg.getAllFields();
         for(Object field : allFields.values()) {
             if(field == null) continue;
@@ -54,18 +55,23 @@ public abstract class ProtoConnection {
             }
             try {
                 callback.setAccessible(true);
-                callback.invoke(this, field);
+                callback.invoke(this, field, response);
             } catch(Throwable e) {
                 LOG.log(Level.WARNING, MessageFormat.format("Callback failed for ''{0}''", field), e);
             }
+        }
+        try {
+            write(response.build());
+        } catch(IOException e) {
+            LOG.log(Level.WARNING, MessageFormat.format("Unable to reply to ''{0}''", this), e);
         }
     }
 
     private boolean isApplicable(Method method, Object o) {
         if(method.getAnnotation(Callback.class) == null) return false;
         Class<?>[] c = method.getParameterTypes();
-        if(c.length != 1) return false;
-        return c[0].isInstance(o);
+        if(c.length != 2) return false;
+        return c[0].isInstance(o) && Meta.Builder.class.isAssignableFrom(c[1]);
     }
 
     public void write(MessageLite m) throws IOException {
