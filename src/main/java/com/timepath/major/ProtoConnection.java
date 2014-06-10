@@ -32,11 +32,11 @@ public abstract class ProtoConnection {
         this.is = s.getInputStream();
     }
 
-    public void read() throws IOException {
-        callback(Meta.parseDelimitedFrom(is));
+    public Meta read() throws IOException {
+        return Meta.parseDelimitedFrom(is);
     }
 
-    private void callback(Meta msg) {
+    protected void callback(Meta msg) {
         if(msg == null) return;
         Map<FieldDescriptor, Object> allFields = msg.getAllFields();
         for(Object field : allFields.values()) {
