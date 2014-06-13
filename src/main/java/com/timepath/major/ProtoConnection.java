@@ -19,6 +19,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * This class represents a connected socket which communicated via protocol buffer messages
+ * <p/>
+ * To use, extend and create @{@link com.timepath.major.ProtoConnection.Callback} annotated methods with two
+ * parameters:
+ * <ul>
+ * <li>The message type to register a callback on</li>
+ * <li>A {@link Meta.Builder} provided to respond to the message</li>
+ * </ul>
+ *
  * @author TimePath
  */
 public abstract class ProtoConnection {
@@ -78,6 +87,9 @@ public abstract class ProtoConnection {
         m.writeDelimitedTo(os);
     }
 
+    /**
+     * Marks a this method as a callback candidate for a {@link com.timepath.major.ProtoConnection}
+     */
     @Target(ElementType.METHOD)
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Callback {}
