@@ -36,10 +36,21 @@ public abstract class ProtoConnection {
     private static final Logger LOG = Logger.getLogger(ProtoConnection.class.getName());
     private final OutputStream os;
     private final InputStream  is;
+    private AtomicInteger counter = new AtomicInteger();
 
     public ProtoConnection(Socket s) throws IOException {
         this.os = s.getOutputStream();
         this.is = s.getInputStream();
+    }
+
+    public Meta.Builder newBuilder() {
+        return Meta.newBuilder().setTag(counter.getAndIncrement());
+    }
+
+    public void loop() throws IOException {
+        for(Meta m; ( m = read() ) != null; ) {
+            callback(m);
+        }
     }
 
     public Meta read() throws IOException {
@@ -50,11 +61,23 @@ public abstract class ProtoConnection {
         if(msg == null) return;
         Meta.Builder responseBuilder = Meta.newBuilder().setTag(msg.getTag());
         int initialSize = responseBuilder.clone().build().getSerializedSize();
+        callback(msg, this, responseBuilder);
+        Meta response = responseBuilder.build();
+        if(response.getSerializedSize() > initialSize) { // There is new data to send back
+            try {
+                write(response);
+            } catch(IOException e) {
+                LOG.log(Level.WARNING, MessageFormat.format("Unable to reply to ''{0}''", this), e);
+            }
+        }
+    }
+
+    protected void callback(Meta msg, Object clazz, Meta.Builder responseBuilder) {
         Map<FieldDescriptor, Object> allFields = msg.getAllFields();
         for(Object field : allFields.values()) {
-            if(!(field instanceof MessageLite)) continue;
+            if(!( field instanceof MessageLite )) continue;
             Method callback = null;
-            for(Method method : getClass().getDeclaredMethods()) {
+            for(Method method : clazz.getClass().getDeclaredMethods()) {
                 if(isApplicable(method, field)) {
                     callback = method;
                     break;
@@ -66,17 +89,9 @@ public abstract class ProtoConnection {
             }
             try {
                 callback.setAccessible(true);
-                callback.invoke(this, field, responseBuilder);
+                callback.invoke(clazz, field, responseBuilder);
             } catch(Throwable e) {
                 LOG.log(Level.WARNING, MessageFormat.format("Callback failed for ''{0}''", field), e);
-            }
-        }
-        Meta response = responseBuilder.build();
-        if(response.getSerializedSize() > initialSize) { // There is new data to send back
-            try {
-                write(response);
-            } catch(IOException e) {
-                LOG.log(Level.WARNING, MessageFormat.format("Unable to reply to ''{0}''", this), e);
             }
         }
     }
@@ -90,18 +105,6 @@ public abstract class ProtoConnection {
 
     public void write(MessageLite m) throws IOException {
         m.writeDelimitedTo(os);
-    }
-
-    private AtomicInteger counter = new AtomicInteger();
-
-    public Meta.Builder newBuilder() {
-        return Meta.newBuilder().setTag(counter.getAndIncrement());
-    }
-
-    public void loop() throws IOException {
-        for(Meta m; ( m = read() ) != null; ) {
-            callback(m);
-        }
     }
 
     /**
