@@ -15,6 +15,7 @@ import java.lang.reflect.Method;
 import java.net.Socket;
 import java.text.MessageFormat;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -85,6 +86,12 @@ public abstract class ProtoConnection {
 
     public void write(MessageLite m) throws IOException {
         m.writeDelimitedTo(os);
+    }
+
+    private AtomicInteger counter = new AtomicInteger();
+
+    public Meta.Builder newBuilder() {
+        return Meta.newBuilder().setTag(counter.getAndIncrement());
     }
 
     /**
