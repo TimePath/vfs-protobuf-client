@@ -50,7 +50,7 @@ public abstract class ProtoConnection {
         Meta.Builder response = Meta.newBuilder().setTag(msg.getTag());
         Map<FieldDescriptor, Object> allFields = msg.getAllFields();
         for(Object field : allFields.values()) {
-            if(field == null) continue;
+            if(!(field instanceof MessageLite)) continue;
             Method callback = null;
             for(Method method : getClass().getDeclaredMethods()) {
                 if(isApplicable(method, field)) {
@@ -92,5 +92,6 @@ public abstract class ProtoConnection {
      */
     @Target(ElementType.METHOD)
     @Retention(RetentionPolicy.RUNTIME)
+    @SuppressWarnings("UnusedDeclaration")
     public @interface Callback {}
 }
