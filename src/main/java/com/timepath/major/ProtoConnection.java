@@ -34,9 +34,12 @@ import java.util.logging.Logger;
 public abstract class ProtoConnection {
 
     private static final Logger LOG = Logger.getLogger(ProtoConnection.class.getName());
-    private final OutputStream os;
-    private final InputStream  is;
+    private OutputStream os;
+    private InputStream  is;
     private AtomicInteger counter = new AtomicInteger();
+
+    protected ProtoConnection() {
+    }
 
     public ProtoConnection(Socket s) throws IOException {
         this.os = s.getOutputStream();
