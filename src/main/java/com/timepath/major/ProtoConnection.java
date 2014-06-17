@@ -48,7 +48,8 @@ public abstract class ProtoConnection {
 
     protected void callback(Meta msg) {
         if(msg == null) return;
-        Meta.Builder response = Meta.newBuilder().setTag(msg.getTag());
+        Meta.Builder responseBuilder = Meta.newBuilder().setTag(msg.getTag());
+        int initialSize = responseBuilder.clone().build().getSerializedSize();
         Map<FieldDescriptor, Object> allFields = msg.getAllFields();
         for(Object field : allFields.values()) {
             if(!(field instanceof MessageLite)) continue;
@@ -65,15 +66,18 @@ public abstract class ProtoConnection {
             }
             try {
                 callback.setAccessible(true);
-                callback.invoke(this, field, response);
+                callback.invoke(this, field, responseBuilder);
             } catch(Throwable e) {
                 LOG.log(Level.WARNING, MessageFormat.format("Callback failed for ''{0}''", field), e);
             }
         }
-        try {
-            write(response.build());
-        } catch(IOException e) {
-            LOG.log(Level.WARNING, MessageFormat.format("Unable to reply to ''{0}''", this), e);
+        Meta response = responseBuilder.build();
+        if(response.getSerializedSize() > initialSize) { // There is new data to send back
+            try {
+                write(response);
+            } catch(IOException e) {
+                LOG.log(Level.WARNING, MessageFormat.format("Unable to reply to ''{0}''", this), e);
+            }
         }
     }
 
@@ -92,6 +96,12 @@ public abstract class ProtoConnection {
 
     public Meta.Builder newBuilder() {
         return Meta.newBuilder().setTag(counter.getAndIncrement());
+    }
+
+    public void loop() throws IOException {
+        for(Meta m; ( m = read() ) != null; ) {
+            callback(m);
+        }
     }
 
     /**
