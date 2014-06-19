@@ -34,37 +34,56 @@ import java.util.logging.Logger;
 public abstract class ProtoConnection {
 
     private static final Logger LOG = Logger.getLogger(ProtoConnection.class.getName());
-    private OutputStream os;
-    private InputStream  is;
+    private OutputStream output;
+    private InputStream  input;
     private AtomicInteger counter = new AtomicInteger();
 
     protected ProtoConnection() {
     }
 
-    public ProtoConnection(Socket s) throws IOException {
-        this.os = s.getOutputStream();
-        this.is = s.getInputStream();
+    public ProtoConnection(Socket socket) throws IOException {
+        this.output = socket.getOutputStream();
+        this.input = socket.getInputStream();
     }
 
+    /**
+     * @return a container message with a unique tag
+     */
     public Meta.Builder newBuilder() {
         return Meta.newBuilder().setTag(counter.getAndIncrement());
     }
 
-    public void loop() throws IOException {
+    /**
+     * Read messages until disconnected
+     *
+     * @throws IOException
+     */
+    public void readLoop() throws IOException {
         for(Meta m; ( m = read() ) != null; ) {
-            callback(m);
+            receive(m);
         }
     }
 
+    /**
+     * @return a single message
+     *
+     * @throws IOException
+     */
     public Meta read() throws IOException {
-        return Meta.parseDelimitedFrom(is);
+        return Meta.parseDelimitedFrom(input);
     }
 
-    protected void callback(Meta msg) {
-        if(msg == null) return;
-        Meta.Builder responseBuilder = Meta.newBuilder().setTag(msg.getTag());
+    /**
+     * Called in response to receiving a message. Fires callbacks and sends the response if there was one
+     *
+     * @param message
+     *         the message
+     */
+    protected void receive(Meta message) {
+        if(message == null) return;
+        Meta.Builder responseBuilder = Meta.newBuilder().setTag(message.getTag());
         int initialSize = responseBuilder.clone().build().getSerializedSize();
-        callback(msg, this, responseBuilder);
+        fireCallbacks(message, this, responseBuilder);
         Meta response = responseBuilder.build();
         if(response.getSerializedSize() > initialSize) { // There is new data to send back
             try {
@@ -75,12 +94,22 @@ public abstract class ProtoConnection {
         }
     }
 
-    protected void callback(Meta msg, Object clazz, Meta.Builder responseBuilder) {
-        Map<FieldDescriptor, Object> allFields = msg.getAllFields();
+    /**
+     * Fires callbacks to a listener in response to a message
+     *
+     * @param message
+     *         the message
+     * @param listener
+     *         the listening object
+     * @param responseBuilder
+     *         a response object to respond with
+     */
+    protected void fireCallbacks(Meta message, Object listener, Meta.Builder responseBuilder) {
+        Map<FieldDescriptor, Object> allFields = message.getAllFields();
         for(Object field : allFields.values()) {
             if(!( field instanceof MessageLite )) continue;
             Method callback = null;
-            for(Method method : clazz.getClass().getDeclaredMethods()) {
+            for(Method method : listener.getClass().getDeclaredMethods()) {
                 if(isApplicable(method, field)) {
                     callback = method;
                     break;
@@ -92,7 +121,7 @@ public abstract class ProtoConnection {
             }
             try {
                 callback.setAccessible(true);
-                callback.invoke(clazz, field, responseBuilder);
+                callback.invoke(listener, field, responseBuilder);
             } catch(Throwable e) {
                 LOG.log(Level.WARNING, MessageFormat.format("Callback failed for ''{0}''", field), e);
             }
@@ -106,12 +135,20 @@ public abstract class ProtoConnection {
         return c[0].isInstance(o) && Meta.Builder.class.isAssignableFrom(c[1]);
     }
 
-    public void write(MessageLite m) throws IOException {
-        m.writeDelimitedTo(os);
+    /**
+     * Write a message to the server. It is recommended to use {@link #newBuilder()} to create a message container
+     *
+     * @param message
+     *         The message
+     *
+     * @throws IOException
+     */
+    public void write(MessageLite message) throws IOException {
+        message.writeDelimitedTo(output);
     }
 
     /**
-     * Marks a this method as a callback candidate for a {@link com.timepath.major.ProtoConnection}
+     * Marks a method as a callback candidate for a {@link com.timepath.major.ProtoConnection}
      */
     @Target(ElementType.METHOD)
     @Retention(RetentionPolicy.RUNTIME)
