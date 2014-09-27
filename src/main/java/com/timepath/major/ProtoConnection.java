@@ -3,6 +3,8 @@ package com.timepath.major;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.MessageLite;
 import com.timepath.major.proto.Messages.Meta;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,12 +38,13 @@ public abstract class ProtoConnection {
     private static final Logger LOG = Logger.getLogger(ProtoConnection.class.getName());
     private OutputStream output;
     private InputStream input;
+    @NotNull
     private AtomicInteger counter = new AtomicInteger();
 
     protected ProtoConnection() {
     }
 
-    public ProtoConnection(Socket socket) throws IOException {
+    public ProtoConnection(@NotNull Socket socket) throws IOException {
         this.output = socket.getOutputStream();
         this.input = socket.getInputStream();
     }
@@ -77,7 +80,7 @@ public abstract class ProtoConnection {
      *
      * @param message the message
      */
-    protected void receive(Meta message) {
+    protected void receive(@Nullable Meta message) {
         if (message == null) return;
         Meta.Builder responseBuilder = Meta.newBuilder().setTag(message.getTag());
         int initialSize = responseBuilder.clone().build().getSerializedSize();
@@ -99,12 +102,12 @@ public abstract class ProtoConnection {
      * @param listener        the listening object
      * @param responseBuilder a response object to respond with
      */
-    protected void fireCallbacks(Meta message, Object listener, Meta.Builder responseBuilder) {
+    protected void fireCallbacks(@NotNull Meta message, @NotNull Object listener, Meta.Builder responseBuilder) {
         Map<FieldDescriptor, Object> allFields = message.getAllFields();
         for (Object field : allFields.values()) {
             if (!(field instanceof MessageLite)) continue;
-            Method callback = null;
-            for (Method method : listener.getClass().getDeclaredMethods()) {
+            @Nullable Method callback = null;
+            for (@NotNull Method method : listener.getClass().getDeclaredMethods()) {
                 if (isApplicable(method, field)) {
                     callback = method;
                     break;
@@ -123,7 +126,7 @@ public abstract class ProtoConnection {
         }
     }
 
-    private boolean isApplicable(Method method, Object o) {
+    private boolean isApplicable(@NotNull Method method, Object o) {
         if (method.getAnnotation(Callback.class) == null) return false;
         Class<?>[] c = method.getParameterTypes();
         if (c.length != 2) return false;
@@ -136,7 +139,7 @@ public abstract class ProtoConnection {
      * @param message The message
      * @throws IOException
      */
-    public void write(MessageLite message) throws IOException {
+    public void write(@NotNull MessageLite message) throws IOException {
         message.writeDelimitedTo(output);
     }
 
