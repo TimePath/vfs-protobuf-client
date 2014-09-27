@@ -35,7 +35,7 @@ public abstract class ProtoConnection {
 
     private static final Logger LOG = Logger.getLogger(ProtoConnection.class.getName());
     private OutputStream output;
-    private InputStream  input;
+    private InputStream input;
     private AtomicInteger counter = new AtomicInteger();
 
     protected ProtoConnection() {
@@ -59,14 +59,13 @@ public abstract class ProtoConnection {
      * @throws IOException
      */
     public void readLoop() throws IOException {
-        for(Meta m; ( m = read() ) != null; ) {
+        for (Meta m; (m = read()) != null; ) {
             receive(m);
         }
     }
 
     /**
      * @return a single message
-     *
      * @throws IOException
      */
     public Meta read() throws IOException {
@@ -76,19 +75,18 @@ public abstract class ProtoConnection {
     /**
      * Called in response to receiving a message. Fires callbacks and sends the response if there was one
      *
-     * @param message
-     *         the message
+     * @param message the message
      */
     protected void receive(Meta message) {
-        if(message == null) return;
+        if (message == null) return;
         Meta.Builder responseBuilder = Meta.newBuilder().setTag(message.getTag());
         int initialSize = responseBuilder.clone().build().getSerializedSize();
         fireCallbacks(message, this, responseBuilder);
         Meta response = responseBuilder.build();
-        if(response.getSerializedSize() > initialSize) { // There is new data to send back
+        if (response.getSerializedSize() > initialSize) { // There is new data to send back
             try {
                 write(response);
-            } catch(IOException e) {
+            } catch (IOException e) {
                 LOG.log(Level.WARNING, MessageFormat.format("Unable to reply to ''{0}''", this), e);
             }
         }
@@ -97,50 +95,45 @@ public abstract class ProtoConnection {
     /**
      * Fires callbacks to a listener in response to a message
      *
-     * @param message
-     *         the message
-     * @param listener
-     *         the listening object
-     * @param responseBuilder
-     *         a response object to respond with
+     * @param message         the message
+     * @param listener        the listening object
+     * @param responseBuilder a response object to respond with
      */
     protected void fireCallbacks(Meta message, Object listener, Meta.Builder responseBuilder) {
         Map<FieldDescriptor, Object> allFields = message.getAllFields();
-        for(Object field : allFields.values()) {
-            if(!( field instanceof MessageLite )) continue;
+        for (Object field : allFields.values()) {
+            if (!(field instanceof MessageLite)) continue;
             Method callback = null;
-            for(Method method : listener.getClass().getDeclaredMethods()) {
-                if(isApplicable(method, field)) {
+            for (Method method : listener.getClass().getDeclaredMethods()) {
+                if (isApplicable(method, field)) {
                     callback = method;
                     break;
                 }
             }
-            if(callback == null) {
+            if (callback == null) {
                 LOG.log(Level.WARNING, "No callback for ''{0}''", field);
                 continue;
             }
             try {
                 callback.setAccessible(true);
                 callback.invoke(listener, field, responseBuilder);
-            } catch(Throwable e) {
+            } catch (Throwable e) {
                 LOG.log(Level.WARNING, MessageFormat.format("Callback failed for ''{0}''", field), e);
             }
         }
     }
 
     private boolean isApplicable(Method method, Object o) {
-        if(method.getAnnotation(Callback.class) == null) return false;
+        if (method.getAnnotation(Callback.class) == null) return false;
         Class<?>[] c = method.getParameterTypes();
-        if(c.length != 2) return false;
+        if (c.length != 2) return false;
         return c[0].isInstance(o) && Meta.Builder.class.isAssignableFrom(c[1]);
     }
 
     /**
      * Write a message to the server. It is recommended to use {@link #newBuilder()} to create a message container
      *
-     * @param message
-     *         The message
-     *
+     * @param message The message
      * @throws IOException
      */
     public void write(MessageLite message) throws IOException {
@@ -153,5 +146,6 @@ public abstract class ProtoConnection {
     @Target(ElementType.METHOD)
     @Retention(RetentionPolicy.RUNTIME)
     @SuppressWarnings("UnusedDeclaration")
-    public @interface Callback {}
+    public @interface Callback {
+    }
 }
